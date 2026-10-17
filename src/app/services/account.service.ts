@@ -72,12 +72,22 @@ export class AccountService {
         }
         try {
             const account = await this._rpcService.getAccountInfoFromIndex(index);
-            const pending = await this._spyglassApi.getReceivableTransactions(
-                account.fullAddress,
-                MAX_PENDING,
-                this.store.minimumBananoThreshold
-            );
-            account.pending = pending;
+            // Spyglass supplies enriched receivables, but must not be a single
+            // point of failure for a wallet backed by a local RsBan node.
+            try {
+                account.pending = await this._spyglassApi.getReceivableTransactions(
+                    account.fullAddress,
+                    MAX_PENDING,
+                    this.store.minimumBananoThreshold
+                );
+            } catch (spyglassError) {
+                console.warn('Spyglass receivable query failed; trying the selected RPC node.', spyglassError);
+                account.pending = await this._rpcService.getReceivableTransactions(
+                    account.fullAddress,
+                    MAX_PENDING,
+                    this.store.minimumBananoThreshold
+                );
+            }
             return account;
         } catch (err) {
             return undefined;
