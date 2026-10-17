@@ -16,7 +16,7 @@ This is *not* a replacement for Spyglass's enriched transaction history, aliases
 
 ## Manual setup in TheBananoStand (test RsBan without changing Spyglass)
 
-1. Open [TheBananoStand Settings](https://thebananostand.com/settings) (or the same **Settings** view in a locally built version of this PR).
+1. Open **Settings** in a **locally built version of this PR** (same UI as [TheBananoStand Settings](https://thebananostand.com/settings)). The public production site can be used for a *baseline RsBan connection check* but cannot validate changes that exist only on this unmerged branch.
 2. Under **Data Sources → Node RPC Datasource**, click **Add New**.
 3. In the **Add new Banano RPC Node** dialog, fill **RPC Node URL** with the complete URL of the test RsBan HTTP JSON-RPC endpoint (for example, an HTTPS reverse-proxy path to the local RsBan RPC server, **not** the node monitoring dashboard) and click **Add**.
 4. Under **Node RPC Datasource → Custom Entries**, confirm the new `Custom node #N` entry is marked **Online** and selected. Choose its radio button if needed. The availability check sends `{"action":"block_count"}`.
