@@ -1,4 +1,7 @@
 import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { lastValueFrom } from 'rxjs';
+import { ReceivableTx } from '@app/types/ReceivableTx';
 import { UtilService } from './util.service';
 import { AccountInfoResponse } from '@dev-ptera/nano-node-rpc';
 import { AccountOverview } from '@app/types/AccountOverview';
@@ -26,7 +29,8 @@ export class RpcService {
     constructor(
         private readonly _util: UtilService,
         private readonly _datasourceService: DatasourceService,
-        private readonly _signerService: SignerService
+        private readonly _signerService: SignerService,
+        private readonly _http: HttpClient
     ) {}
 
     /** Returns number of confirmed transactions an account has. */
@@ -50,7 +54,7 @@ export class RpcService {
                     unopenedAccount: true,
                 } as UnopenedAccountResponse);
             }
-            LOG_ERR(err);
+            throw LOG_ERR(err);
         });
         const accountOverview = this._formatAccountInfoResponse(index, publicAddress, accountInfoRpc);
         return accountOverview;
@@ -95,6 +99,64 @@ export class RpcService {
             representative: accountInfo.representative,
             frontier: accountInfo.frontier,
         };
+    }
+
+    /** Read confirmed receivable blocks directly from the selected Banano RPC node.
+     *
+     *  The standalone RPC client currently only exposes accounts_pending, so this
+     *  uses HttpClient for the modern single-account receivable action. Retry the
+     *  legacy name only if the server explicitly rejects the modern action.
+     *  Never switch to another RPC endpoint as part of a retry.
+     */
+    async getReceivableTransactions(address: string, count: number, thresholdBan: number): Promise<ReceivableTx[]> {
+        const source = await this._datasourceService.getRpcSource();
+        const options = {
+            account: address,
+            count: String(count),
+            threshold: this._util.convertBanToRaw(thresholdBan),
+            source: 'true',
+            include_only_confirmed: 'true',
+        };
+        type ReceivableResponse = {
+            blocks: { [hash: string]: { amount: string; source?: string } };
+            error?: string;
+        };
+        const request = async (action: 'receivable' | 'pending'): Promise<ReceivableResponse> => {
+            const response = await lastValueFrom(
+                this._http.post<ReceivableResponse>(source.url, { action, ...options })
+            );
+            if (response?.error) {
+                throw new Error(response.error);
+            }
+            return response;
+        };
+
+        let response: ReceivableResponse;
+        try {
+            response = await request('receivable');
+        } catch (err) {
+            const reason = err?.error?.error || err?.error || err?.message;
+            if (reason !== 'Action receivable not allowed' && reason !== 'Unknown command') {
+                throw err;
+            }
+            // An older node or an RPC proxy might only accept the legacy action.
+            response = await request('pending');
+        }
+
+        if (!response?.blocks || Array.isArray(response.blocks) || typeof response.blocks !== 'object') {
+            throw new Error('Invalid receivable RPC response');
+        }
+        return Object.entries(response.blocks).map(([hash, pending]) => {
+            if (!pending || typeof pending.amount !== 'string') {
+                throw new Error('Invalid receivable RPC block entry');
+            }
+            return {
+                hash,
+                address: pending.source,
+                amountRaw: pending.amount,
+                amount: this._util.convertRawToBan(pending.amount),
+            };
+        });
     }
 
     /** Given a hash, tells our RPC datasource to stop calculating work to process a transaction. */
