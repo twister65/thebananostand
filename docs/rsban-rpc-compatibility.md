@@ -14,6 +14,19 @@ This is an adaptation, **not a cherry-pick**. TheBananoStand already passes a JS
 
 This is *not* a replacement for Spyglass's enriched transaction history, aliases, price data or representative scores. RPC-fallback receivables do not include timestamps unless supplied by the RPC.
 
+## Manual setup in TheBananoStand (test RsBan without changing Spyglass)
+
+1. Open [TheBananoStand Settings](https://thebananostand.com/settings) (or the same **Settings** view in a locally built version of this PR).
+2. Under **Data Sources → Node RPC Datasource**, click **Add New**.
+3. In the **Add new Banano RPC Node** dialog, fill **RPC Node URL** with the complete URL of the test RsBan HTTP JSON-RPC endpoint (for example, an HTTPS reverse-proxy path to the local RsBan RPC server, **not** the node monitoring dashboard) and click **Add**.
+4. Under **Node RPC Datasource → Custom Entries**, confirm the new `Custom node #N` entry is marked **Online** and selected. Choose its radio button if needed. The availability check sends `{"action":"block_count"}`.
+5. **Do not modify Spyglass API Datasource.** Leave the currently selected **Prussia Node** entry at `https://spyglass-api.prussia.dev/banano`. This is intentional: Spyglass continues to provide enriched receivable metadata, filtered history, aliases, prices and representative information, while RsBan handles node RPC requests.
+6. Test account balance/representative display and the authorized Ledger send/receive/open/change flows via the new custom RPC source. **Verify the selected source stays the custom RsBan node.** To specifically test the *Spyglass outage → RsBan receivable fallback*, simulate Spyglass unavailability in an isolated test, restore it afterward, and confirm that the wallet shows incoming blocks via the custom RPC endpoint. This fallback is **not** exercised while Prussia Node is working.
+
+**Browser access:** from the hosted `https://thebananostand.com`, the RPC URL must be reachable by the browser over HTTPS with a valid certificate and appropriate CORS response for that origin. A bare `http://localhost:7072` URL is not a suitable endpoint on that HTTPS site. Never expose an unrestricted `process`/wallet-management RPC publicly; restrict allowed actions and authenticate/limit the proxy as appropriate. A monitor URL such as `https://twister32.ddns.info/` does **not** necessarily serve JSON-RPC.
+
+**Selection note:** Prussia Node is a selectable Spyglass source in the code, not a globally hardcoded default. Preserve the user's existing selection; the application can automatically choose among accessible Spyglass sources during initialization.
+
 ## Validation gates
 
 - [ ] CI: `npm ci --legacy-peer-deps` (or the upstream-supported `yarn`), `npm run lint`, `npm run test:ci`, `npm run build` and existing Cypress suite.
